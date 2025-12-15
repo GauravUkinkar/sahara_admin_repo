@@ -1,0 +1,21 @@
+.contacts {
+  padding: 1rem;
+  overflow-x: hidden !important;
+
+  .contacts-container {
+    flex-direction: column;
+    display: flex;
+    gap: 0rem;
+
+
+    .instruction {
+        margin-bottom: 1.5rem; 
+    }
+
+    label{
+        margin-bottom: 3rem;
+    }
+
+   
+  }
+}

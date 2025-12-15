@@ -1,0 +1,86 @@
+.homepage {
+  height: 100vh;
+  .homepage-container {
+    form {
+      display: flex;
+      align-items: center;
+      height: 100%;
+
+      .left {
+        width: 70%;
+        height: 100%;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start;
+      }
+      .right {
+        width: 400px;
+        border-left: 1px solid var(--grey2);
+        height: 100%;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start;
+        gap: 1rem;
+        .video-select {
+          width: 100%;
+          display: flex;
+          gap: 1rem;
+          align-items: center;
+          justify-content: center;
+          padding-bottom: 4px;
+          border-bottom: 1px solid var(--grey2);
+
+          .option {
+            position: relative;
+            cursor: pointer;
+            &::after {
+              display: block;
+              content: "";
+              height: 4px;
+              background: var(--accent);
+              width: 0px;
+              position: absolute;
+              left: 50%;
+              transform: translateX(-50%);
+              bottom: -6px;
+              border-radius: 100px;
+            }
+            &:hover,
+            &.active {
+              color: var(--white);
+              &::after {
+                width: calc(100% + 10px);
+              }
+            }
+          }
+        }
+        .video-box {
+          background: var(--grey2);
+          width: 100%;
+          border-radius: 10px;
+          display: none;
+
+          &.desk {
+            aspect-ratio: 16/9;
+            display: block;
+          }
+
+          &.tab,
+          &.fi {
+            aspect-ratio: 1;
+            display: block;
+          }
+
+          &.mob {
+            aspect-ratio: 9/16;
+            display: block;
+          }
+        }
+      }
+    }
+  }
+}
