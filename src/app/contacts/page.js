@@ -131,12 +131,13 @@ const Page = () => {
         )
         .filter((id) => id !== null);
 
-      // Refresh the contact list after deletion attempts
+
+      //  Refresh the contact list after deletion attempts
       const response = await getContacts();
 
       const latestData =
         Array.isArray(response) &&
-        response[0]?.status !== "BAD_REQUEST"
+          response[0]?.status !== "BAD_REQUEST"
           ? response.filter((item) => item?.data)
           : [];
 
@@ -149,8 +150,7 @@ const Page = () => {
 
       if (failedIds.length === 0) {
         toast.success(
-          `${idsToDelete.length} contact${
-            idsToDelete.length > 1 ? "s" : ""
+          `${idsToDelete.length} contact${idsToDelete.length > 1 ? "s" : ""
           } deleted successfully.`,
           {
             position: "top-center",
@@ -160,8 +160,7 @@ const Page = () => {
         );
       } else {
         toast.warning(
-          `${idsToDelete.length - failedIds.length} deleted; ${
-            failedIds.length
+          `${idsToDelete.length - failedIds.length} deleted; ${failedIds.length
           } failed. Please try again.`,
           {
             position: "top-center",
@@ -193,9 +192,8 @@ const Page = () => {
           title={
             confirmIds.length === data.length
               ? `Delete All ${confirmIds.length} Contacts?`
-              : `Delete ${confirmIds.length} Selected Contact${
-                  confirmIds.length > 1 ? "s" : ""
-                }?`
+              : `Delete ${confirmIds.length} Selected Contact${confirmIds.length > 1 ? "s" : ""
+              }?`
           }
           clickA={() => setConfirmIds([])}
           clickB={deleteSelected}
