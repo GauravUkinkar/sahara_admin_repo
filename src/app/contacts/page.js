@@ -1,4 +1,6 @@
+
 "use client";
+
 import { useEffect, useState } from "react";
 import "./contacts.scss";
 import { getContacts, deleteContacts } from "../(api)/contactAPi";
@@ -9,85 +11,194 @@ import ThemeStore from "../(comps)/store/Theme";
 
 const Page = () => {
   const { isDarkMode } = ThemeStore();
+
   const [data, setData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [confirmIds, setConfirmIds] = useState([]);
+
   const [controls, setControls] = useState({
-    deleteId: null,
     search: "",
     instruction: true,
-    
   });
 
-  const loadData = () => {
+  // Fetch contacts
+  const loadData = async () => {
     setIsLoading(true);
-    getContacts()
-      .then((response) => {
-        if (Array.isArray(response) && response.length > 0) {
-          if (response[0].status === "BAD_REQUEST") {
-            setData([]);
-          } else {
-            setData(response.filter((item) => item?.data));
-          }
-        } else {
+
+    try {
+      const response = await getContacts();
+
+      if (Array.isArray(response)) {
+        if (response[0]?.status === "BAD_REQUEST") {
           setData([]);
+        } else {
+          setData(response.filter((item) => item?.data));
         }
-        setIsLoading(false);
-      })
-      .catch((error) => {
-        console.error("Error fetching contacts:", error);
+      } else {
         setData([]);
-        setIsLoading(false);
-      });
+      }
+    } catch (error) {
+      console.error("Error fetching contacts:", error);
+      setData([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
     loadData();
   }, []);
 
-  const deleteC = async (id) => {
-    try {
-      await deleteContacts(id);
-      const updatedData = await getContacts();
-      setData(updatedData);
-    } catch (error) {
-      console.error("Error deleting contact:", error);
-    } finally {
-      setIsLoading(false);
-      setControls({ ...controls, deleteId: null });
-      toast.warning("1 Contact Deleted", {
-        position: "top-center",
-        autoClose: 500,
-        hideProgressBar: false,
-        closeOnClick: false,
-        theme: isDarkMode ? "dark" : "light",
-      });
+  // Filter contacts
+  const filteredData = data
+    .filter((item) => item?.data)
+    .filter((item) => {
+      const search = controls.search.toLowerCase();
+
+      return [
+        item.data.name,
+        item.data.email,
+        item.data.phoneNumber,
+        item.data.message,
+        item.data.activity,
+      ].some((field) =>
+        String(field ?? "").toLowerCase().includes(search)
+      );
+    });
+
+  // IDs of contacts currently displayed after searching
+  const visibleIds = filteredData
+    .map((item) => item.data.cId)
+    .filter((id) => id !== null && id !== undefined);
+
+  // Check whether every visible contact is selected
+  const allSelected =
+    visibleIds.length > 0 &&
+    visibleIds.every((id) => selectedIds.includes(id));
+
+  // Select/deselect all visible contacts
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      setSelectedIds((previous) => [
+        ...new Set([...previous, ...visibleIds]),
+      ]);
+    } else {
+      setSelectedIds((previous) =>
+        previous.filter((id) => !visibleIds.includes(id))
+      );
     }
   };
 
-  const filteredData = data
-    .filter((cdata) => cdata.data)
-    .filter((cdata) =>
-      [
-        cdata.data.name,
-        cdata.data.email,
-        cdata.data.phoneNumber,
-        cdata.data.message,
-        cdata.data.activity,
-      ].some((field) =>
-        field?.toLowerCase().includes(controls.search.toLowerCase())
-      )
+  // Select/deselect one contact
+  const handleSelectOne = (id, checked) => {
+    setSelectedIds((previous) =>
+      checked
+        ? [...new Set([...previous, id])]
+        : previous.filter((selectedId) => selectedId !== id)
     );
+  };
+
+  // Open confirmation for selected contacts
+  const openDeleteConfirmation = (ids) => {
+    if (ids.length === 0) {
+      toast.info("Please select at least one contact.", {
+        position: "top-center",
+        theme: isDarkMode ? "dark" : "light",
+      });
+      return;
+    }
+
+    setConfirmIds([...ids]);
+  };
+
+  // Delete selected contacts
+  const deleteSelected = async () => {
+    if (confirmIds.length === 0) return;
+
+    const idsToDelete = [...confirmIds];
+    setConfirmIds([]);
+    setIsLoading(true);
+
+    try {
+      const results = await Promise.allSettled(
+        idsToDelete.map((id) => deleteContacts(id))
+      );
+
+      const failedIds = results
+        .map((result, index) =>
+          result.status === "rejected" ? idsToDelete[index] : null
+        )
+        .filter((id) => id !== null);
+
+      // Refresh the contact list after deletion attempts
+      const response = await getContacts();
+
+      const latestData =
+        Array.isArray(response) &&
+        response[0]?.status !== "BAD_REQUEST"
+          ? response.filter((item) => item?.data)
+          : [];
+
+      setData(latestData);
+
+      const remainingIds = latestData.map((item) => item.data.cId);
+      setSelectedIds((previous) =>
+        previous.filter((id) => remainingIds.includes(id))
+      );
+
+      if (failedIds.length === 0) {
+        toast.success(
+          `${idsToDelete.length} contact${
+            idsToDelete.length > 1 ? "s" : ""
+          } deleted successfully.`,
+          {
+            position: "top-center",
+            autoClose: 1500,
+            theme: isDarkMode ? "dark" : "light",
+          }
+        );
+      } else {
+        toast.warning(
+          `${idsToDelete.length - failedIds.length} deleted; ${
+            failedIds.length
+          } failed. Please try again.`,
+          {
+            position: "top-center",
+            autoClose: 2500,
+            theme: isDarkMode ? "dark" : "light",
+          }
+        );
+      }
+    } catch (error) {
+      console.error("Error deleting contacts:", error);
+
+      toast.error("Unable to refresh contacts. Please try again.", {
+        position: "top-center",
+        theme: isDarkMode ? "dark" : "light",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <>
       <ToastContainer />
-      {controls.deleteId && (
+
+      {confirmIds.length > 0 && (
         <Confirmation
           btnYes="Cancel"
           btnNo="Delete"
-          title="Confirm Deletion"
-          clickA={() => setControls({ ...controls, deleteId: null })}
-          clickB={() => deleteC(controls.deleteId)}
+          title={
+            confirmIds.length === data.length
+              ? `Delete All ${confirmIds.length} Contacts?`
+              : `Delete ${confirmIds.length} Selected Contact${
+                  confirmIds.length > 1 ? "s" : ""
+                }?`
+          }
+          clickA={() => setConfirmIds([])}
+          clickB={deleteSelected}
         />
       )}
 
@@ -97,21 +208,47 @@ const Page = () => {
             <div className="title">
               <h2>Contact Requests</h2>
             </div>
+
             <div className="btns">
               <button
                 className="btn2"
                 onClick={() => {
                   loadData();
-                  toast.info("All Latest Contacts Fetched", {
+                  toast.info("Refreshing contact requests...", {
                     position: "top-center",
-                    autoClose: 500,
-                    hideProgressBar: false,
-                    closeOnClick: false,
+                    autoClose: 1000,
                     theme: isDarkMode ? "dark" : "light",
                   });
                 }}
               >
                 Refresh Data
+              </button>
+
+              <button
+                className="btn2"
+                disabled={selectedIds.length === 0 || isLoading}
+                onClick={() =>
+                  openDeleteConfirmation(selectedIds)
+                }
+              >
+                Delete Selected ({selectedIds.length})
+              </button>
+
+              <button
+                className="btn2"
+                disabled={data.length === 0 || isLoading}
+                onClick={() => {
+                  const allIds = data
+                    .map((item) => item.data?.cId)
+                    .filter(
+                      (id) => id !== null && id !== undefined
+                    );
+
+                  setSelectedIds(allIds);
+                  openDeleteConfirmation(allIds);
+                }}
+              >
+                Delete All
               </button>
             </div>
           </div>
@@ -120,17 +257,21 @@ const Page = () => {
             <div
               className="inst-heading"
               onClick={() =>
-                setControls({ ...controls, instruction: !controls.instruction })
+                setControls((previous) => ({
+                  ...previous,
+                  instruction: !previous.instruction,
+                }))
               }
             >
               <h2>How to Use</h2>
+
               <button
                 className="btn4"
-                style={
-                  controls.instruction
-                    ? { transform: "rotate(180deg)" }
-                    : { transform: "rotate(0deg)" }
-                }
+                style={{
+                  transform: controls.instruction
+                    ? "rotate(180deg)"
+                    : "rotate(0deg)",
+                }}
               >
                 <IoMdArrowDropdown />
               </button>
@@ -139,20 +280,20 @@ const Page = () => {
             {controls.instruction && (
               <div className="inst-content">
                 <p>
-                  <span>1.</span> Use the search bar to find specific contacts
-                  by name, email, phone, activity or message.
+                  <span>1.</span> Search contacts by name, email, phone,
+                  activity, or message.
                 </p>
                 <p>
-                  <span>2.</span> Click <span>Refresh Data</span> to load the
-                  latest information.
+                  <span>2.</span> Use the checkbox in the table header to
+                  select or deselect all visible contacts.
                 </p>
                 <p>
-                  <span>3.</span> <span>Delete</span> contacts after processing
-                  to keep your records clean.
+                  <span>3.</span> Select individual contacts to delete
+                  only those records.
                 </p>
                 <p>
-                  <span>4.</span> If no contacts appear, wait for new
-                  submissions or refresh the page.
+                  <span>4.</span> Use Delete Selected or Delete All and
+                  confirm the deletion.
                 </p>
               </div>
             )}
@@ -164,7 +305,10 @@ const Page = () => {
               type="text"
               value={controls.search}
               onChange={(e) =>
-                setControls({ ...controls, search: e.target.value })
+                setControls((previous) => ({
+                  ...previous,
+                  search: e.target.value,
+                }))
               }
             />
 
@@ -184,50 +328,76 @@ const Page = () => {
               <table>
                 <thead>
                   <tr>
+                    <th>
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        disabled={visibleIds.length === 0}
+                        onChange={(e) =>
+                          handleSelectAll(e.target.checked)
+                        }
+                        aria-label="Select all visible contacts"
+                      />
+                    </th>
                     <th>ID</th>
                     <th>Name</th>
                     <th>Email</th>
                     <th>Phone</th>
                     <th>Message</th>
                     <th>Activity</th>
-                    {/* <th>Status</th> */}
                     <th>Actions</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {filteredData.length === 0 ? (
                     <tr>
-                      <td colSpan="7" style={{ textAlign: "center" }}>
+                      <td colSpan="8" style={{ textAlign: "center" }}>
                         {controls.search.length > 0
                           ? "No matching contacts found."
                           : "No contact requests available yet."}
                       </td>
                     </tr>
                   ) : (
-                    filteredData.map((cdata, index) => (
-                      <tr key={index}>
-                        <td>{cdata.data.cId}</td>
-                        <td>{cdata.data.name}</td>
-                        <td>{cdata.data.email}</td>
-                        <td>{cdata.data.phoneNumber}</td>
-                        <td>{cdata.data.message}</td>
-                        <td>{cdata.data.activity}</td>
-                        {/* <td>{cdata.data.status}</td> */}
-                        <td>
-                          <button
-                            className="btn2"
-                            onClick={() =>
-                              setControls({
-                                ...controls,
-                                deleteId: cdata.data.cId,
-                              })
-                            }
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    filteredData.map((cdata) => {
+                      const contact = cdata.data;
+
+                      return (
+                        <tr key={contact.cId}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.includes(contact.cId)}
+                              onChange={(e) =>
+                                handleSelectOne(
+                                  contact.cId,
+                                  e.target.checked
+                                )
+                              }
+                              aria-label={`Select ${contact.name}`}
+                            />
+                          </td>
+
+                          <td>{contact.cId}</td>
+                          <td>{contact.name}</td>
+                          <td>{contact.email}</td>
+                          <td>{contact.phoneNumber}</td>
+                          <td>{contact.message}</td>
+                          <td>{contact.activity}</td>
+
+                          <td>
+                            <button
+                              className="btn2"
+                              onClick={() =>
+                                openDeleteConfirmation([contact.cId])
+                              }
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
